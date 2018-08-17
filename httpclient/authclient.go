@@ -32,6 +32,8 @@ type AuthenticatedClient interface {
 	DoAuthenticatedPost(url string, bodyType string, body string, accessToken string) (io.ReadCloser, int, error)
 
 	DoAuthenticatedPut(url string, accessToken string) (int, error)
+
+	DoAuthenticatedPatch(url string, bodyType string, body string, accessToken string) (int, error)
 }
 
 type authenticatedClient struct {
@@ -112,6 +114,25 @@ func (c *authenticatedClient) DoAuthenticatedPut(url string, accessToken string)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return resp.StatusCode, fmt.Errorf("Authenticated put of '%s' failed: %s", url, resp.Status)
+	}
+	return resp.StatusCode, nil
+}
+
+func (c *authenticatedClient) DoAuthenticatedPatch(url string, bodyType string, bodyStr string, accessToken string) (int, error) {
+	body := strings.NewReader(bodyStr)
+	req, err := http.NewRequest("PATCH", url, body)
+	if err != nil {
+		return 0, fmt.Errorf("Request creation error: %s", err)
+	}
+
+	addAuthorizationHeader(req, accessToken)
+	req.Header.Set("Content-Type", bodyType)
+	resp, err := c.Httpclient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("Authenticated patch to '%s' failed: %s", url, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return resp.StatusCode, fmt.Errorf("Authenticated patch to '%s' failed: %s", url, resp.Status)
 	}
 	return resp.StatusCode, nil
 }

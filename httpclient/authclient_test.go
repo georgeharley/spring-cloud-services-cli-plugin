@@ -344,4 +344,85 @@ var _ = Describe("Authclient", func() {
 			})
 		})
 	})
+
+	Describe("DoAuthenticatedPatch", func() {
+		const (
+			testBodyType = "body-type"
+			testBody     = "body"
+		)
+
+		var (
+			bodyType string
+			body     string
+		)
+
+		BeforeEach(func() {
+			URL = testUrl
+			bodyType = testBodyType
+			body = testBody
+			resp := &http.Response{StatusCode: http.StatusOK}
+			fakeClient.DoReturns(resp, nil)
+		})
+
+		JustBeforeEach(func() {
+			authClient := httpclient.NewAuthenticatedClient(fakeClient)
+			status, err = authClient.DoAuthenticatedPatch(URL, bodyType, body, testAccessToken)
+		})
+
+		Context("when the URL is invalid", func() {
+			BeforeEach(func() {
+				URL = ":"
+			})
+
+			It("should return a suitable error", func() {
+				Expect(err).To(MatchError("Request creation error: parse :: missing protocol scheme"))
+			})
+		})
+
+		It("should send a request with the correct body", func() {
+			Expect(fakeClient.DoCallCount()).To(Equal(1))
+			req := fakeClient.DoArgsForCall(0)
+			bodyContents, readErr := ioutil.ReadAll(req.Body)
+			Expect(readErr).NotTo(HaveOccurred())
+			Expect(string(bodyContents)).To(Equal(testBody))
+		})
+
+		It("should send a request with the correct authorization header", func() {
+			Expect(fakeClient.DoCallCount()).To(Equal(1))
+			req := fakeClient.DoArgsForCall(0)
+			Expect(req.Header.Get("Authorization")).To(Equal(testBearerAccessToken))
+		})
+
+		It("should send a request with the correct content type header", func() {
+			Expect(fakeClient.DoCallCount()).To(Equal(1))
+			req := fakeClient.DoArgsForCall(0)
+			Expect(req.Header.Get("Content-Type")).To(Equal(bodyType))
+		})
+
+		It("should pass the status code back", func() {
+			Expect(err).NotTo(HaveOccurred())
+			Expect(status).To(Equal(http.StatusOK))
+		})
+
+		Context("when the request fails", func() {
+			BeforeEach(func() {
+				fakeClient.DoReturns(nil, testErr)
+			})
+
+			It("should produce an error", func() {
+				Expect(err).To(MatchError(fmt.Sprintf("Authenticated patch to 'https://eureka.pivotal.io/auth/request' failed: %s", errMessage)))
+			})
+		})
+
+		Context("when the request returns a bad status code", func() {
+			BeforeEach(func() {
+				resp := &http.Response{StatusCode: http.StatusNotFound, Status: "415 Unsupported patch document"}
+				fakeClient.DoReturns(resp, nil)
+			})
+
+			It("should return the error", func() {
+				Expect(err).To(MatchError("Authenticated patch to 'https://eureka.pivotal.io/auth/request' failed: 415 Unsupported patch document"))
+			})
+		})
+	})
 })
